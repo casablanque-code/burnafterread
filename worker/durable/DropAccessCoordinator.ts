@@ -41,18 +41,21 @@ interface Env {
         const expireTime = new Date((drop as any).expire_at).getTime();
         if (expireTime < Date.now()) {
           await this.deleteDrop(drop as any);
-          return new Response(JSON.stringify({ error: "expired" }), {
-            status: 410,
-            headers: { "content-type": "application/json" },
-          });
+        
+          if ((drop as any).paranoid) {
+            return new Response(JSON.stringify({ error: "not_found" }), { status: 404 });
+          }
+        
+          return new Response(JSON.stringify({ error: "expired" }), { status: 410 });
         }
   
         // 4. проверяем просмотры
         if ((drop as any).views_left <= 0) {
-          return new Response(JSON.stringify({ error: "burned" }), {
-            status: 410,
-            headers: { "content-type": "application/json" },
-          });
+          if ((drop as any).paranoid) {
+            return new Response(JSON.stringify({ error: "not_found" }), { status: 404 });
+          }
+        
+          return new Response(JSON.stringify({ error: "burned" }), { status: 410 });
         }
   
         // 5. уменьшаем просмотры
@@ -77,7 +80,10 @@ interface Env {
         const ciphertext = await obj.text();
   
         // 7. если последний просмотр — удаляем
-        if (newViews <= 0) {
+        if ((drop as any).paranoid) {
+          // в paranoid режиме удаляем ВСЕГДА
+          await this.deleteDrop(drop as any);
+        } else if (newViews <= 0) {
           await this.deleteDrop(drop as any);
         }
   
