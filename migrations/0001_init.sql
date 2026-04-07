@@ -1,0 +1,12 @@
+CREATE TABLE IF NOT EXISTS drops (
+  id TEXT PRIMARY KEY,
+  r2_key TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  size_bytes INTEGER NOT NULL,
+  views_left INTEGER NOT NULL,
+  expire_at TEXT NOT NULL,
+  delete_token_hash TEXT NOT NULL,
+  paranoid INTEGER NOT NULL DEFAULT 1,
+  status TEXT NOT NULL DEFAULT 'active',
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);

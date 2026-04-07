@@ -1,0 +1,72 @@
+/**
+ * For more details on how to configure Wrangler, refer to:
+ * https://developers.cloudflare.com/workers/wrangler/configuration/
+ */
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "burnafterread",
+	"main": "worker/index.ts",
+	"compatibility_date": "2026-04-07",
+	"assets": {
+  		"directory": "./dist/client",
+  		"not_found_handling": "single-page-application"
+	},
+	"observability": {
+		"enabled": true
+	},
+	"upload_source_maps": true,
+	"compatibility_flags": [
+		"nodejs_compat"
+	],
+	"r2_buckets": [
+		{
+			"bucket_name": "burnafterread-blobs",
+			"binding": "BLOBS"
+		}
+	],
+	"d1_databases": [
+  		{
+    		"binding": "DB",
+    		"database_name": "burnafterread-db",
+    		"database_id": "cf3f8722-d39e-4d40-b8f2-7ceaf8b43561"
+  		}
+	],
+	"durable_objects": {
+  			"bindings": [
+    		{
+      		"name": "DROP_COORDINATOR",
+      		"class_name": "DropAccessCoordinator"
+    		}
+  		]
+		},
+		"migrations": [
+  		{
+    		"tag": "v1",
+    		"new_sqlite_classes": ["DropAccessCoordinator"]
+  		}
+	]
+
+	/**
+	 * Smart Placement
+	 * https://developers.cloudflare.com/workers/configuration/smart-placement/#smart-placement
+	 */
+	// "placement": {  "mode": "smart" }
+	/**
+	 * Bindings
+	 * Bindings allow your Worker to interact with resources on the Cloudflare Developer Platform, including
+	 * databases, object storage, AI inference, real-time communication and more.
+	 * https://developers.cloudflare.com/workers/runtime-apis/bindings/
+	 */
+	/**
+	 * Environment Variables
+	 * https://developers.cloudflare.com/workers/wrangler/configuration/#environment-variables
+	 * Note: Use secrets to store sensitive data.
+	 * https://developers.cloudflare.com/workers/configuration/secrets/
+	 */
+	// "vars": {  "MY_VARIABLE": "production_value" }
+	/**
+	 * Service Bindings (communicate between multiple Workers)
+	 * https://developers.cloudflare.com/workers/wrangler/configuration/#service-bindings
+	 */
+	// "services": [  {   "binding": "MY_SERVICE",   "service": "my-service"  } ]
+}
