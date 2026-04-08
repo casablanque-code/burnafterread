@@ -12,16 +12,18 @@
     "cf-typegen": "wrangler types"
   },
   "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
     "commander": "^11.1.0",
-    "node-fetch": "^3.3.2",
-    "@types/react": "^19.2.7",
-    "@types/react-dom": "^19.2.3"
+    "node-fetch": "^3.3.2"
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "^1.31.1",
     "@eslint/js": "^9.39.1",
     "@types/node": "^24.12.2",
     "@vitejs/plugin-react": "^5.1.1",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
     "eslint": "^9.39.1",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
