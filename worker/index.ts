@@ -94,7 +94,13 @@ if (url.pathname.startsWith("/api/drops/") && request.method === "GET") {
         });
 
       } catch (e) {
-        return error("internal error", 500);
+        return new Response(
+          JSON.stringify({
+            error: "internal_error",
+            message: e instanceof Error ? e.message : String(e),
+          }),
+          { status: 500, headers: { "content-type": "application/json" } }
+        );
       }
     }
 
