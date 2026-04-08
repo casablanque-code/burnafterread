@@ -124,6 +124,69 @@ http://localhost:8787
 POST /api/drops
 ```
 
+---
+
+## 🧰 CLI
+
+BurnAfterRead also provides a CLI tool for secure sharing directly from your terminal.
+
+### Install
+
+```bash
+npm install -g burnafter
+```
+
+Or use without installation:
+
+```bash
+npx burnafter
+```
+
+---
+
+### Usage
+
+```bash
+burnafter send <file>
+burnafter send --text "secret message"
+```
+
+---
+
+### Options
+
+* `--text <text>` — send raw text instead of file
+* `--ttl <seconds>` — time to live (default: 86400)
+* `--views <number>` — number of allowed views (default: 1)
+* `--paranoid` — delete immediately after first access
+
+---
+
+### Examples
+
+```bash
+burnafter send secret.txt
+
+burnafter send --text "my password"
+
+burnafter send config.env --ttl 3600 --views 1
+
+burnafter send archive.zip --paranoid
+```
+
+---
+
+### How it works
+
+* Data is encrypted locally (AES-GCM) before upload
+* The server stores only encrypted data
+* The decryption key is included in the URL fragment (`#k=...`)
+* The server never sees or stores the key
+
+👉 The CLI provides the same zero-knowledge guarantees as the web app.
+
+
+
 Body:
 
 ```json
@@ -159,8 +222,8 @@ GET /api/drops/:id
 
 ## 🧭 Roadmap
 
-* [ ] File support (up to 5MB)
-* [ ] CLI tool (`burnafter`)
+* [Х] File support (up to 5MB)
+* [Х] CLI tool (`burnafter`)
 * [ ] QR sharing
 * [ ] Dead-man switch
 * [ ] Multi-part secrets

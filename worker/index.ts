@@ -93,13 +93,16 @@ if (url.pathname.startsWith("/api/drops/") && request.method === "GET") {
           delete_token: deleteToken
         });
 
-      } catch (e) {
+      } catch {
         return new Response(
-          JSON.stringify({
-            error: "internal_error",
-            message: e instanceof Error ? e.message : String(e),
-          }),
-          { status: 500, headers: { "content-type": "application/json" } }
+          JSON.stringify({ error: "internal_error" }),
+          {
+            status: 500,
+            headers: {
+              "content-type": "application/json; charset=utf-8",
+              "cache-control": "no-store",
+            },
+          }
         );
       }
     }

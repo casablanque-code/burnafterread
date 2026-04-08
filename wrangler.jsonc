@@ -12,7 +12,7 @@
   		"not_found_handling": "single-page-application"
 	},
 	"observability": {
-		"enabled": true
+		"enabled": false
 	},
 	"upload_source_maps": true,
 	"compatibility_flags": [
