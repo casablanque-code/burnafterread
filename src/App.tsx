@@ -4,14 +4,17 @@ import { useMemo, useState } from "react";
 import "./App.css";
 import {
   decodeKeyFromUrl,
+  decryptBytes,
   decryptText,
   encodeKeyForUrl,
+  encryptBytes,
   encryptText,
   generateKeyBytes,
   type EncryptedPayloadV1,
 } from "./lib/crypto";
 
 type Mode = "create" | "read";
+type CreateKind = "text" | "file";
 
 interface CreateResponse {
   id: string;
@@ -21,6 +24,15 @@ interface CreateResponse {
 interface ReadResponse {
   ciphertext: string;
   kind: "text" | "file";
+}
+
+interface FilePayloadV1 {
+  v: 1;
+  type: "file";
+  filename: string;
+  mime: string;
+  iv: string;
+  data: string;
 }
 
 function getModeFromLocation(pathname: string): Mode {
@@ -52,6 +64,7 @@ function App() {
   const [ttlSeconds, setTtlSeconds] = useState(86400);
   const [views, setViews] = useState(1);
   const [paranoid, setParanoid] = useState(true);
+  const [file, setFile] = useState<File | null>(null);
 
   const [creating, setCreating] = useState(false);
   const [createdLink, setCreatedLink] = useState("");
@@ -61,14 +74,15 @@ function App() {
   const [reading, setReading] = useState(false);
   const [readText, setReadText] = useState("");
   const [readError, setReadError] = useState("");
+  const [readFileInfo, setReadFileInfo] = useState<string>("");
 
   async function handleCreate() {
     setCreateError("");
     setCreatedLink("");
     setDeleteToken("");
 
-    if (!text.trim()) {
-      setCreateError("Enter some text first.");
+    if (!file && !text.trim()) {
+      setCreateError("Enter some text or select a file.");
       return;
     }
 
@@ -76,8 +90,40 @@ function App() {
       setCreating(true);
 
       const rawKey = generateKeyBytes();
-      const encryptedPayload = await encryptText(text, rawKey);
-      const ciphertext = JSON.stringify(encryptedPayload);
+
+      let ciphertext = "";
+      let kind: CreateKind = "text";
+      let sizeBytes = 0;
+
+      if (file) {
+        kind = "file";
+
+        const buffer = await file.arrayBuffer();
+        const encrypted = await encryptBytes(buffer, rawKey);
+
+        const payload: FilePayloadV1 = {
+          v: 1,
+          type: "file",
+          filename: file.name,
+          mime: file.type || "application/octet-stream",
+          iv: encrypted.iv,
+          data: encrypted.data,
+        };
+
+        ciphertext = JSON.stringify(payload);
+        sizeBytes = buffer.byteLength;
+      } else {
+        kind = "text";
+
+        const encryptedPayload = await encryptText(text, rawKey);
+
+        ciphertext = JSON.stringify({
+          ...encryptedPayload,
+          type: "text",
+        });
+
+        sizeBytes = new TextEncoder().encode(text).length;
+      }
 
       const response = await fetch("/api/drops", {
         method: "POST",
@@ -88,20 +134,19 @@ function App() {
           ciphertext,
           ttl_seconds: ttlSeconds,
           views,
-          kind: "text",
-          size_bytes: new TextEncoder().encode(text).length,
+          kind,
+          size_bytes: sizeBytes,
           paranoid,
         }),
       });
 
       if (!response.ok) {
         const maybeError = await response.json().catch(() => null);
-        throw new Error(maybeError?.error || "Failed to create drop");
+        throw new Error(maybeError?.message || maybeError?.error || "Failed to create drop");
       }
 
       const data = (await response.json()) as CreateResponse;
       const encodedKey = encodeKeyForUrl(rawKey);
-
       const link = `${window.location.origin}/d/${data.id}#k=${encodedKey}`;
 
       setCreatedLink(link);
@@ -122,6 +167,7 @@ function App() {
   async function handleRead() {
     setReadError("");
     setReadText("");
+    setReadFileInfo("");
 
     if (!dropId) {
       setReadError("Missing drop id.");
@@ -145,15 +191,36 @@ function App() {
 
       if (!response.ok) {
         const maybeError = await response.json().catch(() => null);
-        throw new Error(maybeError?.error || "Failed to read drop");
+        throw new Error(maybeError?.message || maybeError?.error || "Failed to read drop");
       }
 
       const data = (await response.json()) as ReadResponse;
-      const payload = JSON.parse(data.ciphertext) as EncryptedPayloadV1;
-      const rawKey = decodeKeyFromUrl(fragmentKey);
-      const plaintext = await decryptText(payload, rawKey);
+      const payload = JSON.parse(data.ciphertext) as
+        | (EncryptedPayloadV1 & { type?: "text" })
+        | FilePayloadV1;
 
-      setReadText(plaintext);
+      const rawKey = decodeKeyFromUrl(fragmentKey);
+
+      if (payload.type === "file") {
+        const buffer = await decryptBytes(payload, rawKey);
+        const blob = new Blob([buffer], {
+          type: payload.mime || "application/octet-stream",
+        });
+
+        const fileUrl = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = fileUrl;
+        a.download = payload.filename || "download";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(fileUrl);
+
+        setReadFileInfo(`Downloaded: ${payload.filename}`);
+      } else {
+        const plaintext = await decryptText(payload as EncryptedPayloadV1, rawKey);
+        setReadText(plaintext);
+      }
     } catch (error) {
       setReadError(error instanceof Error ? error.message : "Unknown error");
     } finally {
@@ -196,6 +263,13 @@ function App() {
               <pre className="plaintextBox">{readText}</pre>
             </div>
           ) : null}
+
+          {readFileInfo ? (
+            <div className="resultBlock">
+              <div className="resultLabel">File</div>
+              <div>{readFileInfo}</div>
+            </div>
+          ) : null}
         </section>
       </main>
     );
@@ -207,7 +281,7 @@ function App() {
         <div className="eyebrow">BurnAfterRead</div>
         <h1>Create secure drop</h1>
         <p className="muted">
-          Text is encrypted in your browser before upload. We can’t read it.
+          Text and files are encrypted in your browser before upload. We can’t read them.
         </p>
 
         <label className="fieldLabel" htmlFor="secretText">
@@ -220,7 +294,53 @@ function App() {
           onChange={(e) => setText(e.target.value)}
           placeholder="Paste a password, config, token, note, or anything sensitive..."
           rows={10}
+          disabled={!!file}
         />
+
+        <label className="fieldLabel" htmlFor="fileInput" style={{ marginTop: 16 }}>
+          File (optional, max 5 MB)
+        </label>
+        <input
+          id="fileInput"
+          type="file"
+          onChange={(e) => {
+            const selected = e.target.files?.[0] || null;
+
+            if (!selected) {
+              setFile(null);
+              return;
+            }
+
+            if (selected.size > 5 * 1024 * 1024) {
+              alert("Max file size is 5 MB");
+              e.currentTarget.value = "";
+              setFile(null);
+              return;
+            }
+
+            setFile(selected);
+            setText("");
+          }}
+        />
+
+        {file ? (
+          <div className="resultBlock" style={{ marginTop: 16 }}>
+            <div className="resultLabel">Selected file</div>
+            <div>{file.name}</div>
+            <div className="muted" style={{ marginTop: 6 }}>
+              {(file.size / 1024).toFixed(1)} KB
+            </div>
+            <div className="inlineButtons" style={{ marginTop: 12 }}>
+              <button
+                type="button"
+                className="secondaryButton"
+                onClick={() => setFile(null)}
+              >
+                Remove file
+              </button>
+            </div>
+          </div>
+        ) : null}
 
         <div className="grid">
           <div className="field">

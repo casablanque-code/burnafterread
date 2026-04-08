@@ -105,3 +105,47 @@ export interface EncryptedPayloadV1 {
   export function decodeKeyFromUrl(encodedKey: string): Uint8Array {
     return base64UrlToBytes(encodedKey);
   }
+
+  // --- FILE SUPPORT ---
+
+export async function encryptBytes(
+  buffer: ArrayBuffer,
+  rawKey: Uint8Array
+) {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const key = await importAesKey(rawKey);
+
+  const encrypted = await crypto.subtle.encrypt(
+    {
+      name: "AES-GCM",
+      iv: iv.buffer as ArrayBuffer,
+    },
+    key,
+    buffer
+  );
+
+  return {
+    iv: bytesToBase64Url(iv),
+    data: bytesToBase64Url(new Uint8Array(encrypted)),
+  };
+}
+
+// --- FILE SUPPORT ---
+
+export async function decryptBytes(
+  payload: { iv: string; data: string },
+  rawKey: Uint8Array
+): Promise<ArrayBuffer> {
+  const iv = base64UrlToBytes(payload.iv);
+  const data = base64UrlToBytes(payload.data);
+  const key = await importAesKey(rawKey);
+
+  return crypto.subtle.decrypt(
+    {
+      name: "AES-GCM",
+      iv: iv.buffer as ArrayBuffer,
+    },
+    key,
+    data.buffer as ArrayBuffer
+  );
+}
