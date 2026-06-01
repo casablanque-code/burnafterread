@@ -6,6 +6,8 @@ BurnAfterRead lets you securely share sensitive data (text for now) using links 
 
 No accounts. No tracking. No server-side access to your secrets.
 
+https://burnafterread.casablanque.com
+
 ---
 
 ## ✨ Features
