@@ -66,7 +66,40 @@ function App() {
   const [paranoid, setParanoid] = useState(true);
   const [file, setFile] = useState<File | null>(null);
 
-  const [creating, setCreating] = useState(false);
+  const [revoking, setRevoking] = useState(false);
+  const [revokeError, setRevokeError] = useState("");
+  const [revoked, setRevoked] = useState(false);
+
+  async function handleRevoke() {
+    if (!createdLink || !deleteToken) return;
+
+    const id = createdLink.split("/d/")[1]?.split("#")[0];
+    if (!id) return;
+
+    setRevoking(true);
+    setRevokeError("");
+
+    try {
+      const response = await fetch(`/api/drops/${id}`, {
+        method: "DELETE",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ delete_token: deleteToken }),
+      });
+
+      if (!response.ok) {
+        const maybeError = await response.json().catch(() => null);
+        throw new Error(maybeError?.error || "Failed to revoke");
+      }
+
+      setRevoked(true);
+      setCreatedLink("");
+      setDeleteToken("");
+    } catch (err) {
+      setRevokeError(err instanceof Error ? err.message : "Unknown error");
+    } finally {
+      setRevoking(false);
+    }
+  }
   const [createdLink, setCreatedLink] = useState("");
   const [deleteToken, setDeleteToken] = useState("");
   const [createError, setCreateError] = useState("");
@@ -431,8 +464,28 @@ function App() {
 
             <div className="resultLabel">Delete token</div>
             <textarea className="linkBox" readOnly value={deleteToken} rows={2} />
+
+            <div className="inlineButtons" style={{ marginTop: 12 }}>
+              <button
+                type="button"
+                className="secondaryButton"
+                onClick={handleRevoke}
+                disabled={revoking}
+                style={{ color: "var(--color-danger, #c0392b)" }}
+              >
+                {revoking ? "Revoking..." : "Revoke drop"}
+              </button>
+            </div>
+
+            {revokeError ? <div className="error">{revokeError}</div> : null}
           </div>
         ) : null}
+
+        {revoked ? (
+          <div className="resultBlock">
+            <div className="resultLabel">Drop revoked</div>
+            <div className="muted">The drop has been deleted and the link is no longer valid.</div>
+          </div>
       </section>
     </main>
   );

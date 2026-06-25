@@ -100,9 +100,76 @@ interface Env {
         });
       }
 
+      if (url.pathname === "/revoke") {
+        const body = (await request.json()) as { id: string; delete_token: string };
+        const { id, delete_token } = body;
+
+        if (!id || !delete_token) {
+          return new Response(JSON.stringify({ error: "invalid_request" }), {
+            status: 400,
+            headers: { "content-type": "application/json" },
+          });
+        }
+
+        return this.state.blockConcurrencyWhile(async () => {
+          const drop = await this.env.DB.prepare(
+            `SELECT * FROM drops WHERE id = ?`
+          )
+            .bind(id)
+            .first();
+
+          if (!drop) {
+            return new Response(JSON.stringify({ error: "not_found" }), {
+              status: 404,
+              headers: { "content-type": "application/json" },
+            });
+          }
+
+          // timing-safe compare: hash the provided token and compare digests
+          const providedHash = await this.sha256(delete_token);
+          const storedHash = (drop as any).delete_token_hash as string;
+
+          if (!this.timingSafeEqual(providedHash, storedHash)) {
+            return new Response(JSON.stringify({ error: "forbidden" }), {
+              status: 403,
+              headers: { "content-type": "application/json" },
+            });
+          }
+
+          await this.deleteDrop(drop as any);
+
+          return new Response(JSON.stringify({ ok: true }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          });
+        });
+      }
+
       return new Response("not found", { status: 404 });
     }
-  
+
+    private async sha256(input: string): Promise<string> {
+      const data = new TextEncoder().encode(input);
+      const hash = await crypto.subtle.digest("SHA-256", data);
+      return btoa(String.fromCharCode(...new Uint8Array(hash)))
+        .replace(/\+/g, "-")
+        .replace(/\//g, "_")
+        .replace(/=+$/, "");
+    }
+
+    // constant-time string comparison to prevent timing attacks
+    private timingSafeEqual(a: string, b: string): boolean {
+      const enc = new TextEncoder();
+      const ab = enc.encode(a);
+      const bb = enc.encode(b);
+      if (ab.length !== bb.length) return false;
+      let diff = 0;
+      for (let i = 0; i < ab.length; i++) {
+        diff |= ab[i] ^ bb[i];
+      }
+      return diff === 0;
+    }
+
     async deleteDrop(drop: any) {
       // удаляем из D1
       await this.env.DB.prepare(

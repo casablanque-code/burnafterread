@@ -38,19 +38,49 @@ export default {
     const url = new URL(request.url);
 
     // GET drop (через DO)
-if (url.pathname.startsWith("/api/drops/") && request.method === "GET") {
-  const id = url.pathname.split("/").pop();
+    if (url.pathname.startsWith("/api/drops/") && request.method === "GET") {
+      const id = url.pathname.split("/").pop();
 
-  const objId = env.DROP_COORDINATOR.idFromName(id!);
-  const stub = env.DROP_COORDINATOR.get(objId);
+      const objId = env.DROP_COORDINATOR.idFromName(id!);
+      const stub = env.DROP_COORDINATOR.get(objId);
 
-  const response = await stub.fetch("http://do/consume", {
-    method: "POST",
-    body: JSON.stringify({ id }),
-  });
+      const response = await stub.fetch("http://do/consume", {
+        method: "POST",
+        body: JSON.stringify({ id }),
+      });
 
-  return response;
-}
+      return response;
+    }
+
+    // DELETE drop (revoke via delete token)
+    if (url.pathname.startsWith("/api/drops/") && request.method === "DELETE") {
+      const id = url.pathname.split("/").pop();
+
+      if (!id) {
+        return error("missing drop id", 400);
+      }
+
+      let delete_token: string;
+      try {
+        const body = await request.json() as { delete_token?: string };
+        if (typeof body.delete_token !== "string" || !body.delete_token) {
+          return error("missing delete_token", 400);
+        }
+        delete_token = body.delete_token;
+      } catch {
+        return error("invalid request body", 400);
+      }
+
+      const objId = env.DROP_COORDINATOR.idFromName(id);
+      const stub = env.DROP_COORDINATOR.get(objId);
+
+      const response = await stub.fetch("http://do/revoke", {
+        method: "POST",
+        body: JSON.stringify({ id, delete_token }),
+      });
+
+      return response;
+    }
 
     // HEALTH
     if (url.pathname === "/api/health") {
