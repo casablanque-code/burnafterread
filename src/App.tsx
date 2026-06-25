@@ -69,6 +69,7 @@ function App() {
   const [revoking, setRevoking] = useState(false);
   const [revokeError, setRevokeError] = useState("");
   const [revoked, setRevoked] = useState(false);
+  const [creating, setCreating] = useState(false);
 
   async function handleRevoke() {
     if (!createdLink || !deleteToken) return;
