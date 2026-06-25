@@ -179,6 +179,11 @@ function App() {
       return;
     }
 
+    if (!/^[A-Za-z0-9_-]{43}$/.test(fragmentKey)) {
+      setReadError("Invalid key format in URL.");
+      return;
+    }
+
     try {
       setReading(true);
 
