@@ -15,8 +15,10 @@ export interface CreateDropRequest {
     if (typeof body.views !== "number") return null;
     if (!["text", "file"].includes(body.kind)) return null;
     if (typeof body.size_bytes !== "number") return null;
-  
+
     if (body.size_bytes > 5 * 1024 * 1024) return null;
+    if (body.ttl_seconds < 60 || body.ttl_seconds > 7 * 24 * 3600) return null;
+    if (!Number.isInteger(body.views) || body.views < 1 || body.views > 10) return null;
   
     return {
       ciphertext: body.ciphertext,
