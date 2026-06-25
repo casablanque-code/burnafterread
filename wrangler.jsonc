@@ -32,10 +32,14 @@
   		}
 	],
 	"durable_objects": {
-  			"bindings": [
+  		"bindings": [
     		{
       		"name": "DROP_COORDINATOR",
       		"class_name": "DropAccessCoordinator"
+    		},
+    		{
+      		"name": "RATE_LIMITER",
+      		"class_name": "RateLimiter"
     		}
   		]
 		},
@@ -43,6 +47,10 @@
   		{
     		"tag": "v1",
     		"new_sqlite_classes": ["DropAccessCoordinator"]
+  		},
+  		{
+    		"tag": "v2",
+    		"new_classes": ["RateLimiter"]
   		}
 	]
 

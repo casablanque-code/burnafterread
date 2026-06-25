@@ -2,15 +2,17 @@ import { json, error } from "./lib/responses";
 import { randomId, randomToken, sha256 } from "./lib/ids";
 import { validateCreate } from "./lib/validation";
 import { DropAccessCoordinator } from "./durable/DropAccessCoordinator";
+import { RateLimiter } from "./durable/RateLimiter";
 
 export interface Env {
   DB: D1Database;
   BLOBS: R2Bucket;
   DROP_COORDINATOR: DurableObjectNamespace;
+  RATE_LIMITER: DurableObjectNamespace;
   ASSETS: Fetcher;
 }
 
-export { DropAccessCoordinator };
+export { DropAccessCoordinator, RateLimiter };
 
 const SECURITY_HEADERS: Record<string, string> = {
   "content-security-policy":
@@ -36,6 +38,22 @@ function withSecurityHeaders(response: Response): Response {
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
+
+    // RATE LIMIT — apply to all /api/* routes, keyed by IP
+    if (url.pathname.startsWith("/api/")) {
+      const ip = request.headers.get("CF-Connecting-IP") ?? "unknown";
+      // all IPs share one DO instance (singleton by fixed name)
+      const rlId = env.RATE_LIMITER.idFromName("global");
+      const rl = env.RATE_LIMITER.get(rlId);
+      const rlRes = await rl.fetch("http://rl/check", {
+        method: "POST",
+        body: JSON.stringify({ ip }),
+      });
+      const { allowed } = (await rlRes.json()) as { allowed: boolean };
+      if (!allowed) {
+        return error("too many requests", 429);
+      }
+    }
 
     // GET drop (через DO)
     if (url.pathname.startsWith("/api/drops/") && request.method === "GET") {
