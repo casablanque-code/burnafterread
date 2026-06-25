@@ -7,8 +7,20 @@ function base64url(buffer) {
     .replace(/=+$/, "");
 }
 
+function base64urlToBuffer(str) {
+  const base64 = str
+    .replace(/-/g, "+")
+    .replace(/_/g, "/")
+    .padEnd(Math.ceil(str.length / 4) * 4, "=");
+  return Buffer.from(base64, "base64");
+}
+
 export function generateKey() {
   return crypto.randomBytes(32);
+}
+
+export function decodeKey(str) {
+  return base64urlToBuffer(str);
 }
 
 export async function encryptBytes(buffer, key) {
@@ -27,6 +39,25 @@ export async function encryptBytes(buffer, key) {
     iv: base64url(iv),
     data: base64url(Buffer.concat([encrypted, tag]))
   };
+}
+
+export async function decryptBytes(payload, key) {
+  const iv = base64urlToBuffer(payload.iv);
+  const raw = base64urlToBuffer(payload.data);
+
+  // AES-256-GCM tag is always 16 bytes appended at the end
+  const TAG_LEN = 16;
+  if (raw.length < TAG_LEN) {
+    throw new Error("Ciphertext too short — data may be corrupt");
+  }
+
+  const ciphertext = raw.subarray(0, raw.length - TAG_LEN);
+  const tag = raw.subarray(raw.length - TAG_LEN);
+
+  const decipher = crypto.createDecipheriv("aes-256-gcm", key, iv);
+  decipher.setAuthTag(tag);
+
+  return Buffer.concat([decipher.update(ciphertext), decipher.final()]);
 }
 
 export function encodeKey(key) {

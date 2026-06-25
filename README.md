@@ -2,9 +2,7 @@
 
 **Privacy-first, end-to-end encrypted, self-destructing data sharing.**
 
-BurnAfterRead lets you securely share sensitive data (text for now) using links that **expire after being read**.
-
-No accounts. No tracking. No server-side access to your secrets.
+Share sensitive text or files via links that expire after being read. No accounts. No tracking. The server never sees your decryption key.
 
 https://burnafterread.casablanque.com
 
@@ -12,109 +10,101 @@ https://burnafterread.casablanque.com
 
 ## ✨ Features
 
-* 🔐 **End-to-end encryption (AES-GCM)** — data is encrypted in your browser
-* 🔑 **Zero-knowledge architecture** — server never sees the decryption key
-* 💣 **Burn after read** — data is destroyed after access
-* ⏳ **Time-based expiration (TTL)**
-* 🔁 **Limited views**
-* 🧠 **Atomic reads via Durable Objects**
-* 🕶️ **Paranoid mode** — minimal metadata, no logs
+- 🔐 **End-to-end encryption (AES-GCM 256)** — encrypted in your browser before upload
+- 🔑 **Zero-knowledge architecture** — server never sees the decryption key
+- 💣 **Burn after read** — data is destroyed after access
+- 📁 **File support** — up to 5 MB
+- ⏳ **TTL expiration** — 1 hour, 24 hours, or 7 days
+- 🔁 **Limited views** — 1, 3, or 10 reads
+- 🗑️ **Revoke anytime** — delete a drop before it's read using the delete token
+- 🕶️ **Paranoid mode** — always deletes on first access, returns `not_found` instead of `expired`/`burned`
+- 🧠 **Atomic reads** — Durable Objects prevent double-reads under concurrent requests
+- 🚦 **Rate limiting** — 20 requests per IP per 60 seconds on all API routes
+- ♻️ **Automatic cleanup** — expired drops purged from D1 and R2 every hour
 
 ---
 
 ## 🧠 How it works
 
-### Encryption flow
-
-```text
-plaintext → (browser) → encrypt → ciphertext → server
+```
+plaintext → AES-GCM encrypt (browser) → ciphertext → Cloudflare R2
+                    ↓
+             key stays in URL fragment (#k=...)
+             never sent to server
 ```
 
-### Decryption flow
+When someone opens the link:
 
-```text
-ciphertext → (browser + key from URL) → decrypt → plaintext
+```
+URL fragment → key parsed locally → fetch ciphertext → decrypt in browser → plaintext
 ```
 
-### Key detail
+The URL looks like:
 
-```text
-https://app/d/<id>#k=<secret-key>
+```
+https://burnafterread.casablanque.com/d/<id>#k=<base64url-key>
 ```
 
-* `id` → sent to server
-* `key` → stays in browser (URL fragment, never sent)
-
-👉 The server **cannot decrypt your data**, even if compromised.
+`id` is sent to the server. `k` never leaves the browser — it's a URL fragment.
 
 ---
 
 ## 🏗️ Architecture
 
-* **Frontend:** React + Web Crypto API
-* **Backend:** Cloudflare Workers
-* **Storage:**
-
-  * D1 → metadata
-  * R2 → encrypted blobs
-* **Concurrency control:** Durable Objects
+| Layer | Technology |
+|---|---|
+| Frontend | React, Web Crypto API |
+| Backend | Cloudflare Workers |
+| Metadata | Cloudflare D1 (SQLite) |
+| Blobs | Cloudflare R2 |
+| Concurrency | Durable Objects (`DropAccessCoordinator`) |
+| Rate limiting | Durable Objects (`RateLimiter`, sliding window) |
+| Cleanup | Workers Cron Trigger (hourly) |
 
 ---
 
 ## 🔁 Read lifecycle
 
-1. Client requests `/api/drops/:id`
-2. Worker delegates to Durable Object
-3. Durable Object:
+1. `GET /api/drops/:id` hits the Worker
+2. Worker checks rate limit (DO-based, per IP)
+3. Worker delegates to `DropAccessCoordinator` DO
+4. Inside `blockConcurrencyWhile` (atomic):
+   - Check TTL
+   - Check `views_left`
+   - Decrement counter
+   - Fetch ciphertext from R2
+   - If paranoid or last view → delete D1 record + R2 object
+5. Return ciphertext to browser
+6. Browser decrypts with key from URL fragment
 
-   * checks TTL
-   * checks remaining views
-   * decrements counter atomically
-4. If last read → deletes:
+---
 
-   * D1 record
-   * R2 object
-5. Returns ciphertext
+## 🗑️ Revoke lifecycle
+
+1. Sender calls `DELETE /api/drops/:id` with `{ delete_token }`
+2. Worker delegates to `DropAccessCoordinator` DO
+3. Inside `blockConcurrencyWhile`:
+   - Fetch drop from D1
+   - Hash provided token, compare with stored hash (constant-time)
+   - Delete D1 record + R2 object
+4. Link is immediately dead
 
 ---
 
 ## 🚀 Local development
 
-### 1. Install
-
 ```bash
 npm install
-```
 
----
-
-### 2. Run database migration
-
-```bash
+# create local D1
 npx wrangler d1 execute burnafterread-db --local --file=./migrations/0001_init.sql
-```
 
----
-
-### 3. Build frontend
-
-```bash
+# build frontend + start worker
 npm run build
-```
-
----
-
-### 4. Start dev server
-
-```bash
 npx wrangler dev
 ```
 
-Open:
-
-```text
-http://localhost:8787
-```
+Open `http://localhost:8787`
 
 ---
 
@@ -124,81 +114,24 @@ http://localhost:8787
 
 ```http
 POST /api/drops
-```
+Content-Type: application/json
 
----
-
-## 🧰 CLI
-
-BurnAfterRead also provides a CLI tool for secure sharing directly from your terminal.
-
-### Install
-
-```bash
-npm install -g burnafter
-```
-
-Or use without installation:
-
-```bash
-npx burnafter
-```
-
----
-
-### Usage
-
-```bash
-burnafter send <file>
-burnafter send --text "secret message"
-```
-
----
-
-### Options
-
-* `--text <text>` — send raw text instead of file
-* `--ttl <seconds>` — time to live (default: 86400)
-* `--views <number>` — number of allowed views (default: 1)
-* `--paranoid` — delete immediately after first access
-
----
-
-### Examples
-
-```bash
-burnafter send secret.txt
-
-burnafter send --text "my password"
-
-burnafter send config.env --ttl 3600 --views 1
-
-burnafter send archive.zip --paranoid
-```
-
----
-
-### How it works
-
-* Data is encrypted locally (AES-GCM) before upload
-* The server stores only encrypted data
-* The decryption key is included in the URL fragment (`#k=...`)
-* The server never sees or stores the key
-
-👉 The CLI provides the same zero-knowledge guarantees as the web app.
-
-
-
-Body:
-
-```json
 {
-  "ciphertext": "...",
+  "ciphertext": "<encrypted payload as JSON string>",
   "ttl_seconds": 86400,
   "views": 1,
   "kind": "text",
   "size_bytes": 123,
   "paranoid": true
+}
+```
+
+Response:
+
+```json
+{
+  "id": "AbCdEf1234",
+  "delete_token": "<base64url token>"
 }
 ```
 
@@ -210,35 +143,94 @@ Body:
 GET /api/drops/:id
 ```
 
+Response:
+
+```json
+{
+  "ciphertext": "<encrypted payload>",
+  "kind": "text"
+}
+```
+
+Errors: `404 not_found`, `410 expired`, `410 burned`, `429 too many requests`
+
+---
+
+### Revoke drop
+
+```http
+DELETE /api/drops/:id
+Content-Type: application/json
+
+{
+  "delete_token": "<token from create response>"
+}
+```
+
+Response: `{ "ok": true }`
+
+---
+
+## 🧰 CLI
+
+Send and receive drops directly from your terminal. Same zero-knowledge guarantees as the web app.
+
+### Install
+
+```bash
+npm install -g burnafter
+```
+
+### Send
+
+```bash
+# send a file
+burnafter send secret.txt
+
+# send text inline
+burnafter send --text "my api key"
+
+# custom TTL and views
+burnafter send config.env --ttl 3600 --views 1
+
+# paranoid mode
+burnafter send archive.zip --paranoid
+```
+
+Options:
+
+| Flag | Description | Default |
+|---|---|---|
+| `--text <text>` | Send text instead of file | — |
+| `--ttl <seconds>` | Time to live | `86400` |
+| `--views <n>` | Allowed reads | `1` |
+| `--paranoid` | Delete on first access | `false` |
+
+### Receive
+
+```bash
+# decrypt text to stdout
+burnafter receive "https://burnafterread.casablanque.com/d/AbCdEf1234#k=..."
+
+# save to specific file
+burnafter receive "https://...#k=..." --out secret.env
+```
+
+The URL must be passed as a quoted string to prevent the shell from stripping the `#` fragment.
+
 ---
 
 ## ⚠️ Security notes
 
-* Encryption happens **only on the client**
-* The server stores **ciphertext only**
-* Decryption key is never transmitted
-* No authentication → links are the only access control
-* If you lose the link → data is gone forever
-
----
-
-## 🧭 Roadmap
-
-* [Х] File support (up to 5MB)
-* [Х] CLI tool (`burnafter`)
-* [ ] QR sharing
-* [ ] Dead-man switch
-* [ ] Multi-part secrets
+- Encryption is **client-side only** — the server stores ciphertext, never plaintext
+- The decryption key is in the **URL fragment** — it is never sent to the server by the browser
+- **No authentication** — the link itself is the only access control; guard it accordingly
+- **Losing the link means losing the data** — there is no recovery mechanism
+- `ttl_seconds` is bounded to 60s–7 days; `views` to 1–10
+- All API responses include `Content-Security-Policy`, `X-Frame-Options: DENY`, and `Referrer-Policy: no-referrer`
 
 ---
 
 ## 📜 License
 
 MIT
-
----
-
-## 💡 Philosophy
-
-> Built by a human, for humans.
-> No tracking. No data harvesting. No bullshit.

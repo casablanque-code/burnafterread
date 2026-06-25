@@ -18,6 +18,9 @@
 	"compatibility_flags": [
 		"nodejs_compat"
 	],
+	"triggers": {
+		"crons": ["0 * * * *"]
+	},
 	"r2_buckets": [
 		{
 			"bucket_name": "burnafterread-blobs",
@@ -32,10 +35,14 @@
   		}
 	],
 	"durable_objects": {
-  			"bindings": [
+  		"bindings": [
     		{
       		"name": "DROP_COORDINATOR",
       		"class_name": "DropAccessCoordinator"
+    		},
+    		{
+      		"name": "RATE_LIMITER",
+      		"class_name": "RateLimiter"
     		}
   		]
 		},
@@ -43,6 +50,10 @@
   		{
     		"tag": "v1",
     		"new_sqlite_classes": ["DropAccessCoordinator"]
+  		},
+  		{
+    		"tag": "v2",
+    		"new_sqlite_classes": ["RateLimiter"]
   		}
 	]
 

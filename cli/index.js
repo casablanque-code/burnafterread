@@ -3,7 +3,7 @@
 import { Command } from "commander";
 import fs from "fs";
 import fetch from "node-fetch";
-import { generateKey, encryptBytes, encodeKey } from "./crypto.js";
+import { generateKey, encryptBytes, encodeKey, decryptBytes, decodeKey } from "./crypto.js";
 
 const API_URL = "https://burnafterread.casablanque.workers.dev";
 
@@ -22,6 +22,9 @@ Examples:
   burnafter send --text "my secret"
   burnafter send config.env --ttl 3600 --views 1
   burnafter send file.zip --paranoid
+
+  burnafter receive "https://burnafterread.casablanque.workers.dev/d/AbCdEf1234#k=..."
+  burnafter receive "https://..." --out decrypted.bin
 
 Notes:
 
@@ -101,9 +104,84 @@ program
     }
   });
 
-/**
- * Alias: burnafter help
- */
+program
+  .command("receive")
+  .description("Receive and decrypt a secure drop from a link")
+  .argument("<url>", "Full drop URL including #k= fragment")
+  .option("--out <file>", "Write decrypted output to file instead of stdout")
+  .action(async (rawUrl, options) => {
+    try {
+      // parse fragment from URL — must be passed as a single quoted string
+      const hashIndex = rawUrl.indexOf("#");
+      if (hashIndex === -1) {
+        console.error("❌ URL has no fragment (#k=...). The decryption key must be included.");
+        process.exit(1);
+      }
+
+      const fragment = rawUrl.slice(hashIndex + 1);
+      const params = new URLSearchParams(fragment);
+      const encodedKey = params.get("k");
+
+      if (!encodedKey) {
+        console.error("❌ No key found in URL fragment. Expected #k=<key>");
+        process.exit(1);
+      }
+
+      if (!/^[A-Za-z0-9_-]{43}$/.test(encodedKey)) {
+        console.error("❌ Key format invalid. Expected 43-character Base64url string.");
+        process.exit(1);
+      }
+
+      // extract drop id from path
+      const baseUrl = rawUrl.slice(0, hashIndex);
+      const pathParts = new URL(baseUrl).pathname.split("/").filter(Boolean);
+      if (pathParts.length < 2 || pathParts[0] !== "d") {
+        console.error("❌ URL path format invalid. Expected /d/<id>");
+        process.exit(1);
+      }
+      const id = pathParts[1];
+
+      // fetch ciphertext from API
+      const apiBase = new URL(baseUrl).origin;
+      const res = await fetch(`${apiBase}/api/drops/${id}`, {
+        method: "GET",
+        headers: { "cache-control": "no-store" }
+      });
+
+      if (!res.ok) {
+        const maybeError = await res.json().catch(() => null);
+        const msg = maybeError?.error || res.statusText;
+        console.error(`❌ Server returned ${res.status}: ${msg}`);
+        process.exit(1);
+      }
+
+      const data = await res.json();
+      const payload = JSON.parse(data.ciphertext);
+      const key = decodeKey(encodedKey);
+
+      const plainBuffer = await decryptBytes(payload, key);
+
+      if (options.out) {
+        fs.writeFileSync(options.out, plainBuffer);
+        console.log(`\n✅ Decrypted and saved to: ${options.out}\n`);
+      } else if (payload.type === "file") {
+        // for files without --out, save using original filename
+        const filename = payload.filename || `burnafter-${id}`;
+        fs.writeFileSync(filename, plainBuffer);
+        console.log(`\n✅ File saved as: ${filename}\n`);
+      } else {
+        // text: print to stdout
+        console.log("\n=== 🔐 Decrypted message ===\n");
+        console.log(plainBuffer.toString("utf-8"));
+        console.log();
+      }
+
+    } catch (e) {
+      console.error("❌ Error:", e.message);
+      process.exit(1);
+    }
+  });
+
 program
   .command("help")
   .description("Show help")
