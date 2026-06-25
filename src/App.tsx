@@ -486,6 +486,7 @@ function App() {
             <div className="resultLabel">Drop revoked</div>
             <div className="muted">The drop has been deleted and the link is no longer valid.</div>
           </div>
+        ) : null}
       </section>
     </main>
   );
