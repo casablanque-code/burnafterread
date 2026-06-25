@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect } from "vitest";
 
 // Isolated sliding window logic extracted from RateLimiter DO
 // Testing the algorithm independently of Cloudflare runtime
