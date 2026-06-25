@@ -180,4 +180,23 @@ export default {
     const assetResponse = await env.ASSETS.fetch(request);
     return withSecurityHeaders(assetResponse);
   },
+
+  async scheduled(_event: ScheduledEvent, env: Env): Promise<void> {
+    // find all expired drops
+    const expired = await env.DB.prepare(
+      `SELECT id, r2_key FROM drops WHERE expire_at < datetime('now')`
+    ).all();
+
+    if (!expired.results?.length) return;
+
+    for (const drop of expired.results as { id: string; r2_key: string }[]) {
+      // delete from R2
+      await env.BLOBS.delete(drop.r2_key);
+
+      // delete from D1
+      await env.DB.prepare(`DELETE FROM drops WHERE id = ?`)
+        .bind(drop.id)
+        .run();
+    }
+  },
 };

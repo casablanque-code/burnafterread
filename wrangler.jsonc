@@ -18,6 +18,9 @@
 	"compatibility_flags": [
 		"nodejs_compat"
 	],
+	"triggers": {
+		"crons": ["0 * * * *"]
+	},
 	"r2_buckets": [
 		{
 			"bucket_name": "burnafterread-blobs",
