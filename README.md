@@ -6,6 +6,8 @@ Share sensitive text or files via links that expire after being read. No account
 
 https://burnafterread.casablanque.com
 
+Check crypto - https://burnafterread.casablanque.com/security
+
 ---
 
 ## ✨ Features
