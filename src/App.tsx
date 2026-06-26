@@ -341,7 +341,7 @@ function App() {
           File <span style={{ color: "var(--muted)", fontWeight: 400 }}>(optional, max 5 MB)</span>
         </label>
         <label
-          className={`dropZone${file ? " dropZone--filled" : ""}${!!text.trim() ? " dropZone--disabled" : ""}`}
+          className={`dropZone${file ? " dropZone--filled" : ""}${text.trim() ? " dropZone--disabled" : ""}`}
           onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add("dropZone--over"); }}
           onDragLeave={(e) => { e.currentTarget.classList.remove("dropZone--over"); }}
           onDrop={(e) => {
@@ -359,7 +359,7 @@ function App() {
             id="fileInput"
             type="file"
             style={{ display: "none" }}
-            disabled={!!text.trim()}
+            disabled={text.trim().length > 0}
             onChange={(e) => {
               const selected = e.target.files?.[0] || null;
               if (!selected) { setFile(null); return; }
