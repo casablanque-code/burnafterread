@@ -320,7 +320,8 @@ function App() {
         <div className="eyebrow">BurnAfterRead</div>
         <h1>Create secure drop</h1>
         <p className="muted">
-          Text and files are encrypted in your browser before upload. We can’t read them.
+          Text and files are encrypted in your browser before upload. We can't read them.{' '}
+          <a href='/security' style={{ color: 'var(--accent)', textDecoration: 'none' }}>How it works &rarr;</a>
         </p>
 
         <label className="fieldLabel" htmlFor="secretText">
