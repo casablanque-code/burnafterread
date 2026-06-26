@@ -333,54 +333,69 @@ function App() {
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder="Paste a password, config, token, note, or anything sensitive..."
-          rows={10}
+          rows={6}
           disabled={!!file}
         />
 
-        <label className="fieldLabel" htmlFor="fileInput" style={{ marginTop: 16 }}>
-          File (optional, max 5 MB)
+        <label className="fieldLabel" style={{ marginTop: 18 }}>
+          File <span style={{ color: "var(--muted)", fontWeight: 400 }}>(optional, max 5 MB)</span>
         </label>
-        <input
-          id="fileInput"
-          type="file"
-          onChange={(e) => {
-            const selected = e.target.files?.[0] || null;
-
-            if (!selected) {
-              setFile(null);
-              return;
-            }
-
-            if (selected.size > 5 * 1024 * 1024) {
-              alert("Max file size is 5 MB");
-              e.currentTarget.value = "";
-              setFile(null);
-              return;
-            }
-
-            setFile(selected);
+        <label
+          className={`dropZone${file ? " dropZone--filled" : ""}${text.trim() ? " dropZone--disabled" : ""}`}
+          onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add("dropZone--over"); }}
+          onDragLeave={(e) => { e.currentTarget.classList.remove("dropZone--over"); }}
+          onDrop={(e) => {
+            e.preventDefault();
+            e.currentTarget.classList.remove("dropZone--over");
+            if (text.trim()) return;
+            const dropped = e.dataTransfer.files?.[0];
+            if (!dropped) return;
+            if (dropped.size > 5 * 1024 * 1024) { alert("Max file size is 5 MB"); return; }
+            setFile(dropped);
             setText("");
           }}
-        />
-
-        {file ? (
-          <div className="resultBlock" style={{ marginTop: 16 }}>
-            <div className="resultLabel">Selected file</div>
-            <div>{file.name}</div>
-            <div className="muted" style={{ marginTop: 6 }}>
-              {(file.size / 1024).toFixed(1)} KB
-            </div>
-            <div className="inlineButtons" style={{ marginTop: 12 }}>
+        >
+          <input
+            id="fileInput"
+            type="file"
+            style={{ display: "none" }}
+            disabled={text.trim().length > 0}
+            onChange={(e) => {
+              const selected = e.target.files?.[0] || null;
+              if (!selected) { setFile(null); return; }
+              if (selected.size > 5 * 1024 * 1024) {
+                alert("Max file size is 5 MB");
+                e.currentTarget.value = "";
+                setFile(null);
+                return;
+              }
+              setFile(selected);
+              setText("");
+            }}
+          />
+          {file ? (
+            <div className="dropZone__file">
+              <span className="dropZone__icon">📄</span>
+              <div className="dropZone__info">
+                <span className="dropZone__name">{file.name}</span>
+                <span className="dropZone__size">{(file.size / 1024).toFixed(1)} KB</span>
+              </div>
               <button
                 type="button"
-                className="secondaryButton"
-                onClick={() => setFile(null)}
-              >
-                Remove file
-              </button>
+                className="dropZone__remove"
+                onClick={(e) => { e.preventDefault(); setFile(null); }}
+                title="Remove file"
+              >✕</button>
             </div>
-          </div>
-        ) : null}
+          ) : (
+            <div className="dropZone__empty">
+              <span className="dropZone__icon">⬆</span>
+              <span className="dropZone__hint">
+                {text.trim() ? "Clear text to attach a file" : "Drop file here or click to browse"}
+              </span>
+            </div>
+          )}
+        </label>
 
         <div className="grid">
           <div className="field">
