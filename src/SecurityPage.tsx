@@ -17,10 +17,14 @@ function base64urlEncode(buf: ArrayBuffer): string {
     .replace(/=+$/, "");
 }
 
-function base64urlDecode(str: string): Uint8Array {
+function base64urlDecode(str: string): Uint8Array<ArrayBuffer> {
   const b64 = str.replace(/-/g, "+").replace(/_/g, "/");
   const padded = b64.padEnd(Math.ceil(b64.length / 4) * 4, "=");
-  return Uint8Array.from(atob(padded), (c) => c.charCodeAt(0));
+  const binary = atob(padded);
+  const buf = new ArrayBuffer(binary.length);
+  const view = new Uint8Array(buf);
+  for (let i = 0; i < binary.length; i++) view[i] = binary.charCodeAt(i);
+  return view as Uint8Array<ArrayBuffer>;
 }
 
 async function generateKey(): Promise<CryptoKey> {
@@ -30,15 +34,9 @@ async function generateKey(): Promise<CryptoKey> {
   ]);
 }
 
-async function exportKeyBytes(key: CryptoKey): Promise<Uint8Array> {
+async function exportKeyBase64url(key: CryptoKey): Promise<string> {
   const raw = await crypto.subtle.exportKey("raw", key);
-  return new Uint8Array(raw);
-}
-
-async function importKeyBytes(bytes: Uint8Array): Promise<CryptoKey> {
-  return crypto.subtle.importKey("raw", bytes, { name: "AES-GCM" }, false, [
-    "decrypt",
-  ]);
+  return base64urlEncode(raw as ArrayBuffer);
 }
 
 interface DemoPayload {
@@ -52,18 +50,19 @@ async function demoEncrypt(
   plaintext: string,
   key: CryptoKey
 ): Promise<DemoPayload> {
-  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ivBuf = new ArrayBuffer(12);
+  crypto.getRandomValues(new Uint8Array(ivBuf));
   const enc = new TextEncoder();
   const ciphertext = await crypto.subtle.encrypt(
-    { name: "AES-GCM", iv },
+    { name: "AES-GCM", iv: ivBuf },
     key,
     enc.encode(plaintext)
   );
   return {
     v: 1,
     alg: "AES-GCM",
-    iv: base64urlEncode(iv),
-    data: base64urlEncode(ciphertext),
+    iv: base64urlEncode(ivBuf),
+    data: base64urlEncode(ciphertext as ArrayBuffer),
   };
 }
 
@@ -73,7 +72,11 @@ async function demoDecrypt(
 ): Promise<string> {
   const iv = base64urlDecode(payload.iv);
   const data = base64urlDecode(payload.data);
-  const plain = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, data);
+  const plain = await crypto.subtle.decrypt(
+    { name: "AES-GCM", iv: iv.buffer as ArrayBuffer },
+    key,
+    data.buffer as ArrayBuffer
+  );
   return new TextDecoder().decode(plain);
 }
 
@@ -83,7 +86,7 @@ type DemoState = "idle" | "encrypted" | "decrypted" | "error";
 
 export default function SecurityPage() {
   const [input, setInput] = useState("Type something secret here...");
-  const [keyHex, setKeyHex] = useState("");
+  const [keyB64, setKeyB64] = useState("");
   const [payload, setPayload] = useState<DemoPayload | null>(null);
   const [decrypted, setDecrypted] = useState("");
   const [demoState, setDemoState] = useState<DemoState>("idle");
@@ -93,9 +96,9 @@ export default function SecurityPage() {
   const handleEncrypt = useCallback(async () => {
     try {
       const key = await generateKey();
-      const keyBytes = await exportKeyBytes(key);
+      const encoded = await exportKeyBase64url(key);
       const result = await demoEncrypt(input, key);
-      setKeyHex(base64urlEncode(keyBytes.buffer));
+      setKeyB64(encoded);
       setPayload(result);
       setCurrentKey(key);
       setDecrypted("");
@@ -114,15 +117,14 @@ export default function SecurityPage() {
       setDecrypted(result);
       setDemoState("decrypted");
       setErrorMsg("");
-    } catch (e) {
-      setErrorMsg("Decryption failed — try tampering with the ciphertext above to see this error");
+    } catch {
+      setErrorMsg("GCM authentication failed — ciphertext has been tampered with");
       setDemoState("error");
     }
   }, [payload, currentKey]);
 
   const handleTamper = useCallback(() => {
     if (!payload) return;
-    // flip last 4 characters of ciphertext to simulate tampering
     const data = payload.data;
     const tampered = data.slice(0, -4) + (data.endsWith("AAAA") ? "ZZZZ" : "AAAA");
     setPayload({ ...payload, data: tampered });
@@ -206,7 +208,7 @@ export default function SecurityPage() {
                 setInput(e.target.value);
                 setDemoState("idle");
                 setPayload(null);
-                setKeyHex("");
+                setKeyB64("");
                 setDecrypted("");
               }}
             />
@@ -229,11 +231,11 @@ export default function SecurityPage() {
 
             {demoState !== "idle" && (
               <div className="demoResults">
-                {keyHex && (
+                {keyB64 && (
                   <div className="demoField">
                     <span className="demoLabel">AES-256 key (Base64url, 32 bytes)</span>
                     <span className="demoNote">This is the value after <code>#k=</code> in the share URL. The server never sees this.</span>
-                    <code className="demoCode demoKey">{keyHex}</code>
+                    <code className="demoCode demoKey">{keyB64}</code>
                   </div>
                 )}
 
@@ -319,29 +321,29 @@ export default function SecurityPage() {
 
             <div className="secVerifyStep">
               <h3>2. Decrypt from the terminal</h3>
-              <p>Using the CLI, you can receive and decrypt a drop entirely offline after fetching the ciphertext:</p>
+              <p>Using the CLI, you can receive and decrypt a drop entirely locally:</p>
               <pre className="secCode">{`npm install -g burnafter
 
 burnafter receive "https://burnafterread.casablanque.com/d/<id>#k=<key>"`}</pre>
             </div>
 
             <div className="secVerifyStep">
-              <h3>3. Decrypt manually</h3>
-              <p>Copy the raw JSON ciphertext from the API and decrypt it with Node.js:</p>
+              <h3>3. Decrypt manually with Node.js</h3>
+              <p>Fetch the raw ciphertext from the API and decrypt it yourself:</p>
               <pre className="secCode">{`const crypto = require("crypto");
 
 const KEY_B64 = "<paste #k= value here>";
 const PAYLOAD = <paste ciphertext JSON here>;
 
-function b64urlToBuffer(s) {
+function b64url(s) {
   return Buffer.from(s.replace(/-/g,"+").replace(/_/g,"/"), "base64");
 }
 
-const key   = b64urlToBuffer(KEY_B64);
-const iv    = b64urlToBuffer(PAYLOAD.iv);
-const raw   = b64urlToBuffer(PAYLOAD.data);
-const data  = raw.subarray(0, raw.length - 16);
-const tag   = raw.subarray(raw.length - 16);
+const key  = b64url(KEY_B64);
+const iv   = b64url(PAYLOAD.iv);
+const raw  = b64url(PAYLOAD.data);
+const data = raw.subarray(0, raw.length - 16);
+const tag  = raw.subarray(raw.length - 16);
 
 const d = crypto.createDecipheriv("aes-256-gcm", key, iv);
 d.setAuthTag(tag);
