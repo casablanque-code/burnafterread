@@ -1,0 +1,37 @@
+version: 2
+updates:
+  # Root app: Vite + Cloudflare Worker
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    groups:
+      dev-dependencies:
+        dependency-type: "development"
+      vite-and-vitest:
+        patterns:
+          - "vite*"
+          - "vitest*"
+    commit-message:
+      prefix: "chore(deps)"
+
+  # /cli - the "burnafter" CLI published separately to npm
+  - package-ecosystem: "npm"
+    directory: "/cli"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    groups:
+      dev-dependencies:
+        dependency-type: "development"
+    commit-message:
+      prefix: "chore(deps-cli)"
+
+  # GitHub Actions used in CI
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
