@@ -6,7 +6,7 @@
     "burnafter": "./index.js"
   },
   "dependencies": {
-    "commander": "^11.1.0",
+    "commander": "^15.0.0",
     "node-fetch": "^3.3.2"
   }
 }
