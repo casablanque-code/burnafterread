@@ -1,6 +1,6 @@
 name: Dependabot Auto-Merge
 
-on: pull_request
+on: pull_request_target
 
 permissions:
   pull-requests: write
@@ -9,7 +9,7 @@ permissions:
 jobs:
   auto-merge:
     runs-on: ubuntu-latest
-    if: dependabot.user.login == 'dependabot[bot]'
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
     
     steps:
       - name: Dependabot metadata
@@ -23,17 +23,20 @@ jobs:
         if: |
           steps.metadata.outputs.update-type == 'version-update:semver-patch'
         run: |
+          PR="${{ github.event.pull_request.number }}"
+
           # Wait for CI checks to complete
-          gh pr checks "${{ github.event.pull_request.number }}" --watch --interval 10 --timeout 5m || true
-          
-          # Get the latest status
-          STATUS=$(gh pr checks "${{ github.event.pull_request.number }}" --json status --jq '.[0].status')
-          
-          if [ "$STATUS" = "PASS" ]; then
+          gh pr checks "$PR" --watch --interval 10 --timeout 5m || true
+
+          # Consider CI green only if every check concluded successfully
+          FAILED=$(gh pr checks "$PR" --json name,conclusion \
+            --jq '[.[] | select(.conclusion != "SUCCESS" and .conclusion != "NEUTRAL" and .conclusion != "SKIPPED")] | length')
+
+          if [ "$FAILED" -eq 0 ]; then
             echo "✅ CI passed! Auto-merging patch update..."
-            gh pr merge --auto --squash "${{ github.event.pull_request.number }}"
+            gh pr merge --auto --squash "$PR"
           else
-            echo "❌ CI failed. Skipping auto-merge for safety."
+            echo "❌ CI failed or incomplete. Skipping auto-merge for safety."
           fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
