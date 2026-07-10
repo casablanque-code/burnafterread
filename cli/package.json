@@ -1,12 +1,12 @@
 {
-    "name": "burnafter", 
-    "version": "1.0.0",
-    "type": "module",
-    "bin": {
-      "burnafter": "./index.js"
-    },
-    "dependencies": {
-      "commander": "^11.1.0",
-      "node-fetch": "^3.3.2"
-    }
+  "name": "burnafter",
+  "version": "1.0.0",
+  "type": "module",
+  "bin": {
+    "burnafter": "./index.js"
+  },
+  "dependencies": {
+    "commander": "^11.1.0",
+    "node-fetch": "^3.3.2"
   }
+}
