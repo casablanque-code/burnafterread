@@ -6,16 +6,29 @@ updates:
     schedule:
       interval: "weekly"
       day: "monday"
+      time: "03:00"
     open-pull-requests-limit: 5
+    rebase-strategy: "auto"
+    
     groups:
       dev-dependencies:
         dependency-type: "development"
-      vite-and-vitest:
+      typescript-types:
+        patterns:
+          - "typescript*"
+          - "@types/*"
+      bundler:
         patterns:
           - "vite*"
           - "vitest*"
+          - "wrangler*"
+      cloudflare:
+        patterns:
+          - "@cloudflare/*"
+    
     commit-message:
       prefix: "chore(deps)"
+      include: "scope"
 
   # /cli - the "burnafter" CLI published separately to npm
   - package-ecosystem: "npm"
@@ -23,15 +36,23 @@ updates:
     schedule:
       interval: "weekly"
       day: "monday"
+      time: "04:00"
     open-pull-requests-limit: 5
+    rebase-strategy: "auto"
+    
     groups:
       dev-dependencies:
         dependency-type: "development"
+    
     commit-message:
       prefix: "chore(deps-cli)"
+      include: "scope"
 
   # GitHub Actions used in CI
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
+      day: "monday"
+      time: "05:00"
+    open-pull-requests-limit: 3
