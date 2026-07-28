@@ -43,6 +43,12 @@ jobs:
           echo "Bumping package.json to $VERSION"
           npm version $VERSION --no-git-tag-version
 
+      - name: Set package version from tag
+        working-directory: ./cli
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          npm version $VERSION --no-git-tag-version          
+
       # 3. NPM public
       - name: Publish to npm
         working-directory: ./cli
