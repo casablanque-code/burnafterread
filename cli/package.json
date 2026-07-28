@@ -3,7 +3,11 @@
   "version": "1.0.0",
   "type": "module",
   "bin": {
-    "burnafter": "./index.js"
+    "burnafter": "index.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/casablanque-code/burnafterread"
   },
   "dependencies": {
     "commander": "^11.1.0",
