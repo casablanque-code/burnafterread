@@ -45,6 +45,6 @@
     "burnafter": "./cli/index.js"
   },
   "optionalDependencies": {
-    "@rollup/rollup-linux-x64-gnu": "^4.63.1"
+    "@rollup/rollup-linux-x64-gnu": "^4.63.3"
   }
 }
