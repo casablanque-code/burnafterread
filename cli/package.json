@@ -10,7 +10,7 @@
     "url": "https://github.com/casablanque-code/burnafterread"
   },
   "dependencies": {
-    "commander": "^11.1.0",
+    "commander": "^15.1.0",
     "node-fetch": "^3.3.2"
   }
 }
